@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LinkedIn Export Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>LinkedIn Export Assistant</h1>
+    
+    <!-- Status Section -->
+    <div class="status-section">
+      <h3>Export Status</h3>
+      <div class="status-info">
+        <span id="export-count">0</span> / <span id="export-limit">20</span> exports used this month
+      </div>
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <div id="pro-status" class="pro-status hidden">PRO User - Unlimited Exports</div>
+    </div>
+
+    <!-- Field Mapping Section -->
+    <div class="mapping-section">
+      <h3>Field Mapping Settings</h3>
+      <div class="field-group">
+        <label>Profile Fields:</label>
+        <div class="field-mapping">
+          <input type="checkbox" id="map-name" checked> <label for="map-name">Name</label>
+          <input type="checkbox" id="map-title" checked> <label for="map-title">Title</label>
+          <input type="checkbox" id="map-company" checked> <label for="map-company">Company</label>
+          <input type="checkbox" id="map-location" checked> <label for="map-location">Location</label>
+          <input type="checkbox" id="map-profile-url" checked> <label for="map-profile-url">Profile URL</label>
+          <input type="checkbox" id="map-links" checked> <label for="map-links">Links</label>
+          <input type="checkbox" id="map-about" checked> <label for="map-about">About</label>
+          <input type="checkbox" id="map-email" checked> <label for="map-email">Email</label>
+        </div>
+      </div>
+      <button id="save-mapping" class="btn btn-secondary">Save Mapping</button>
+    </div>
+
+    <!-- Export History Section -->
+    <div class="history-section">
+      <h3>Recent Exports</h3>
+      <div id="export-history" class="export-history">
+        <!-- History items will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Preview Section -->
+    <div class="preview-section hidden" id="preview-section">
+      <h3>Data Preview</h3>
+      <div id="preview-data" class="preview-data">
+        <!-- Preview data will be populated by JavaScript -->
+      </div>
+      <div class="preview-actions">
+        <button id="export-csv" class="btn btn-primary">Export CSV</button>
+        <button id="cancel-preview" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Upgrade Section -->
+    <div class="upgrade-section hidden" id="upgrade-section">
+      <h3>Upgrade to PRO</h3>
+      <p>You've reached your monthly export limit. Upgrade to PRO for unlimited exports!</p>
+      <div class="pro-features">
+        <h4>PRO Features:</h4>
+        <ul>
+          <li>✓ Unlimited exports per month</li>
+          <li>✓ Export to Google Sheets</li>
+          <li>✓ Advanced filtering options</li>
+          <li>✓ Bulk export templates</li>
+          <li>✓ Priority support</li>
+        </ul>
+      </div>
+      <button id="upgrade-btn" class="btn btn-primary">Upgrade to PRO - $9.99/month</button>
+    </div>
+
+    <!-- PRO Features Section -->
+    <div class="pro-features-section" id="pro-features-section">
+      <h3>PRO Features</h3>
+      <div class="feature-item">
+        <button id="export-google-sheets" class="btn btn-secondary" disabled>Export to Google Sheets (PRO)</button>
+        <p class="feature-description">Export directly to Google Sheets with one click</p>
+      </div>
+      <div class="feature-item">
+        <button id="bulk-export" class="btn btn-secondary" disabled>Bulk Export Templates (PRO)</button>
+        <p class="feature-description">Save and reuse export templates for different use cases</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+
