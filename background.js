@@ -5,36 +5,53 @@ console.log("LinkedIn Export Assistant background script loaded.");
 const EXPORT_LIMIT_FREE = 20; // 20 exports/month for freemium
 const EXPORT_LIMIT_PRO = -1; // Unlimited for PRO
 
-// Default mapping for fields
+// Enhanced default mapping for fields with new data fields
 const defaultFieldMapping = {
   profile: {
-    name: { label: 'Name', enabled: true },
-    title: { label: 'Title', enabled: true },
-    company: { label: 'Company', enabled: true },
-    location: { label: 'Location', enabled: true },
-    profileUrl: { label: 'Profile URL', enabled: true },
-    links: { label: 'Links', enabled: true },
-    email: { label: 'Email', enabled: true },
-    about: { label: 'About', enabled: true }
+    name: { label: 'Name', enabled: true, order: 1 },
+    title: { label: 'Title', enabled: true, order: 2 },
+    company: { label: 'Company', enabled: true, order: 3 },
+    location: { label: 'Location', enabled: true, order: 4 },
+    email: { label: 'Email', enabled: true, order: 5 },
+    phone: { label: 'Phone', enabled: true, order: 6 },
+    profileUrl: { label: 'Profile URL', enabled: true, order: 7 },
+    publicProfileUrl: { label: 'Public Profile URL', enabled: false, order: 8 },
+    about: { label: 'About', enabled: true, order: 9 },
+    education: { label: 'Education', enabled: true, order: 10 },
+    skills: { label: 'Skills', enabled: true, order: 11 },
+    connections: { label: 'Connections', enabled: false, order: 12 },
+    socialLinks: { label: 'Social Links', enabled: false, order: 13 },
+    industry: { label: 'Industry', enabled: false, order: 14 }
   },
   searchResult: {
-    name: { label: 'Name', enabled: true },
-    title: { label: 'Title', enabled: true },
-    company: { label: 'Company', enabled: true },
-    location: { label: 'Location', enabled: true },
-    profileUrl: { label: 'Profile URL', enabled: true }
+    name: { label: 'Name', enabled: true, order: 1 },
+    title: { label: 'Title', enabled: true, order: 2 },
+    company: { label: 'Company', enabled: true, order: 3 },
+    location: { label: 'Location', enabled: true, order: 4 },
+    connectionDegree: { label: 'Connection Degree', enabled: true, order: 5 },
+    mutualConnections: { label: 'Mutual Connections', enabled: false, order: 6 },
+    profileUrl: { label: 'Profile URL', enabled: true, order: 7 }
   }
 };
 
 
 // Initialize storage on installation
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({
-    exportHistory: [],
-    exportCount: 0,
-    lastExportMonth: new Date().getMonth(),
-    isProUser: false, // Default to freemium
-    fieldMapping: defaultFieldMapping
+  chrome.storage.local.get(['fieldMapping'], (result) => {
+    // Merge existing field mapping with new default fields
+    const existingMapping = result.fieldMapping || {};
+    const mergedMapping = {
+      profile: { ...defaultFieldMapping.profile, ...existingMapping.profile },
+      searchResult: { ...defaultFieldMapping.searchResult, ...existingMapping.searchResult }
+    };
+    
+    chrome.storage.local.set({
+      exportHistory: [],
+      exportCount: 0,
+      lastExportMonth: new Date().getMonth(),
+      isProUser: false, // Default to freemium
+      fieldMapping: mergedMapping
+    });
   });
 });
 
@@ -48,6 +65,31 @@ function resetExportCountIfNewMonth(currentMonth) {
       });
     }
   });
+}
+
+// Enhanced mapData function with ordering support
+function mapData(data, mapping) {
+  if (data.name === 'Invalid') {
+    throw new Error('Invalid data');
+  }
+  
+  // Sort fields by order
+  const sortedFields = Object.entries(mapping)
+    .sort((a, b) => (a[1].order || 999) - (b[1].order || 999));
+  
+  const mapped = {};
+  
+  for (const [key, config] of sortedFields) {
+    if (config.enabled) {
+      const value = data[key];
+      // Ensure all enabled fields are present, even if empty
+      mapped[config.label] = (value !== undefined && value !== null)
+        ? (Array.isArray(value) ? value.join(', ') : String(value))
+        : '';
+    }
+  }
+  
+  return mapped;
 }
 
 // Handle messages from content scripts
@@ -83,10 +125,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const limitMessage = `Export limit reached (${currentExportCount}/${EXPORT_LIMIT_FREE}). Upgrade to PRO for unlimited exports.`;
           console.warn(limitMessage);
           sendResponseOnce({ success: false, message: limitMessage });
-          return; // Exit here if not allowed to export
+          return;
         }
 
         const data = request.payload;
+        
+        // Check for extraction errors
+        if (data.error) {
+          sendResponseOnce({ 
+            success: false, 
+            message: `Data extraction failed: ${data.errorDetails || 'Unknown error'}` 
+          });
+          return;
+        }
+        
         let mappedData;
         try {
           if (request.type === 'EXPORT_PROFILE') {
@@ -97,14 +149,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } catch (mapError) {
           console.error('Error mapping data:', mapError);
           sendResponseOnce({ success: false, message: 'Error mapping data. Please check your field settings.' });
-          return; // Exit here if mapping fails
+          return;
         }
 
         // If we reach here, mapping was successful. Proceed with storage and send success response.
         if (request.type === 'EXPORT_PROFILE') {
-          exportHistory.unshift({ id: Date.now(), type: 'profile', data: mappedData, exportedAt: new Date().toISOString() });
+          exportHistory.unshift({ 
+            id: Date.now(), 
+            type: 'profile', 
+            data: mappedData, 
+            exportedAt: new Date().toISOString() 
+          });
         } else { // EXPORT_SEARCH_RESULTS
-          exportHistory.unshift({ id: Date.now(), type: 'search_results', data: mappedData, exportedAt: new Date().toISOString() });
+          exportHistory.unshift({ 
+            id: Date.now(), 
+            type: 'search_results', 
+            data: mappedData, 
+            count: mappedData.length,
+            exportedAt: new Date().toISOString() 
+          });
         }
 
         chrome.storage.local.set({
@@ -112,7 +175,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           exportHistory: exportHistory.slice(0, 50) // Keep last 50 exports
         }, () => {
           console.log(`${request.type} successful`);
-          sendResponseOnce({ success: true, message: `${request.type.replace('_', ' ')} successful!`, data: mappedData });
+          sendResponseOnce({ 
+            success: true, 
+            message: `${request.type.replace('_', ' ')} successful!`, 
+            data: mappedData 
+          });
         });
       } else if (request.type === 'GET_STATUS') {
         sendResponseOnce({ 
@@ -127,6 +194,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.log('Field mapping updated');
           sendResponseOnce({ success: true, message: 'Field mapping updated.' });
         });
+      } else if (request.type === 'RESET_EXPORT_COUNT') {
+        // Admin function for testing
+        chrome.storage.local.set({ exportCount: 0 }, () => {
+          console.log('Export count reset');
+          sendResponseOnce({ success: true, message: 'Export count reset.' });
+        });
       } else {
         const errorMessage = 'Unknown request type.';
         console.error(errorMessage, request);
@@ -134,26 +207,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     } catch (error) {
       console.error('Error processing request:', error);
-      sendResponseOnce({ success: false, message: 'Internal error occurred. Please try again.' });
+      sendResponseOnce({ 
+        success: false, 
+        message: `Internal error occurred: ${error.message}. Please try again.` 
+      });
     }
   });
   return true; // Indicate that sendResponse will be called asynchronously
 });
-
-function mapData(data, mapping) {
-  if (data.name === 'Invalid') {
-    throw new Error('Invalid data');
-  }
-  const mapped = {};
-  for (const key in mapping) {
-    if (mapping[key].enabled) { // Check if field is enabled
-      const value = data[key];
-      // Ensure all enabled fields are present, even if empty
-      mapped[mapping[key].label] = (value !== undefined && value !== null) ? (Array.isArray(value) ? value.join(', ') : String(value)) : '';
-    }
-  }
-  return mapped;
-}
 
 module.exports = {
   resetExportCountIfNewMonth,
@@ -161,4 +222,3 @@ module.exports = {
   defaultFieldMapping,
   EXPORT_LIMIT_FREE
 };
-

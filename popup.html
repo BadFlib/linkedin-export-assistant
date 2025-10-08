@@ -23,19 +23,99 @@
     <!-- Field Mapping Section -->
     <div class="mapping-section">
       <h3>Field Mapping Settings</h3>
+      
       <div class="field-group">
-        <label>Profile Fields:</label>
+        <label class="section-label">Profile Export Fields:</label>
         <div class="field-mapping">
-          <input type="checkbox" id="map-name" checked> <label for="map-name">Name</label>
-          <input type="checkbox" id="map-title" checked> <label for="map-title">Title</label>
-          <input type="checkbox" id="map-company" checked> <label for="map-company">Company</label>
-          <input type="checkbox" id="map-location" checked> <label for="map-location">Location</label>
-          <input type="checkbox" id="map-profile-url" checked> <label for="map-profile-url">Profile URL</label>
-          <input type="checkbox" id="map-links" checked> <label for="map-links">Links</label>
-          <input type="checkbox" id="map-about" checked> <label for="map-about">About</label>
-          <input type="checkbox" id="map-email" checked> <label for="map-email">Email</label>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-name" checked>
+            <label for="map-profile-name">Name</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-title" checked>
+            <label for="map-profile-title">Title</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-company" checked>
+            <label for="map-profile-company">Company</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-location" checked>
+            <label for="map-profile-location">Location</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-email" checked>
+            <label for="map-profile-email">Email</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-phone" checked>
+            <label for="map-profile-phone">Phone</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-profileUrl" checked>
+            <label for="map-profile-profileUrl">Profile URL</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-about" checked>
+            <label for="map-profile-about">About</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-education" checked>
+            <label for="map-profile-education">Education</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-skills" checked>
+            <label for="map-profile-skills">Skills</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-connections">
+            <label for="map-profile-connections">Connections</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-socialLinks">
+            <label for="map-profile-socialLinks">Social Links</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-profile-industry">
+            <label for="map-profile-industry">Industry</label>
+          </div>
         </div>
       </div>
+
+      <div class="field-group">
+        <label class="section-label">Search Results Export Fields:</label>
+        <div class="field-mapping">
+          <div class="field-item">
+            <input type="checkbox" id="map-search-name" checked>
+            <label for="map-search-name">Name</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-title" checked>
+            <label for="map-search-title">Title</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-company" checked>
+            <label for="map-search-company">Company</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-location" checked>
+            <label for="map-search-location">Location</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-connectionDegree" checked>
+            <label for="map-search-connectionDegree">Connection Degree</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-mutualConnections">
+            <label for="map-search-mutualConnections">Mutual Connections</label>
+          </div>
+          <div class="field-item">
+            <input type="checkbox" id="map-search-profileUrl" checked>
+            <label for="map-search-profileUrl">Profile URL</label>
+          </div>
+        </div>
+      </div>
+      
       <button id="save-mapping" class="btn btn-secondary">Save Mapping</button>
     </div>
 
@@ -93,4 +173,3 @@
   <script src="popup.js"></script>
 </body>
 </html>
-

@@ -1,398 +1,172 @@
-// content.js
 
-if (typeof window !== 'undefined') {
-    console.log("LinkedIn Export Assistant content script loaded in browser.");
-}
-
-// Function to extract profile data with performance optimization
-function extractProfileData() {
-  const data = {};
-
-  try {
-    // Use more efficient selectors and add fallbacks
-    const nameSelectors = [
-      "h1.text-heading-xlarge",
-      "h1[data-anonymize='person-name']",
-      ".pv-text-details__left-panel h1"
-    ];
-    data.name = getTextFromSelectors(nameSelectors);
-
-    const titleSelectors = [
-      ".text-body-medium.break-words",
-      ".pv-text-details__right-panel .text-body-medium",
-      ".pv-top-card--list-bullet .pv-entity__summary-info h2"
-    ];
-    data.title = getTextFromSelectors(titleSelectors);
-
-    const experienceSelectors = [
-      ".pv-text-details__right-panel-item-text.hoverable-link-text.break-words.text-body-small",
-      ".pv-entity__summary-info .pv-entity__summary-info-v2",
-      ".experience-section .pv-entity__summary-info h3"
-    ];
-    data.company = getTextFromSelectors(experienceSelectors);
-
-    const locationSelectors = [
-      ".text-body-small.inline.t-black--light.break-words",
-      ".pv-text-details__left-panel .text-body-small",
-      ".pv-top-card--list-bullet .pv-top-card__list-bullet-item"
-    ];
-    data.location = getTextFromSelectors(locationSelectors);
-
-    const aboutSelectors = [
-      ".pv-about-section .pv-shared-text-with-see-more__text",
-      ".pv-about__summary-text .lt-line-clamp__raw-line",
-      ".summary-section .pv-about__summary-text"
-    ];
-    data.about = getTextFromSelectors(aboutSelectors);
-
-    // Profile URL
-    data.profileUrl = window.location.href;
-
-    // Links (basic implementation)
-    data.links = [window.location.href];
-
-    // Email (if visible in DOM)
-    const emailElement = document.querySelector("a[href^='mailto:']");
-    data.email = emailElement ? emailElement.href.replace("mailto:", "") : "";
-
-    console.log("Profile data extracted successfully:", data);
-    return data;
-  } catch (error) {
-    console.error("Error extracting profile data:", error);
-    return { error: "Failed to extract profile data" };
-  }
-}
-
-// Helper function to get text from multiple selectors (fallback mechanism)
+// Helper function to get text from multiple selectors
 function getTextFromSelectors(selectors) {
   for (const selector of selectors) {
-    try {
-      const element = document.querySelector(selector);
-      if (element && element.innerText && element.innerText.trim()) {
-        return element.innerText.trim();
-      }
-    } catch (e) {
-      // console.warn(`Selector failed: ${selector}`, e); // Commented out to reduce noise during testing
+    const element = document.querySelector(selector);
+    if (element && element.textContent && element.textContent.trim() !== ".") {
+      return element.textContent.trim().replace(/\s\s+/g, " ");
     }
   }
   return "";
 }
 
-// Function to inject export button on profile page
-function injectProfileExportButton() {
-  const targetElement = document.querySelector(".pv-top-card-v2-ctas"); // Adjust selector if needed
-
-  if (targetElement && !document.getElementById("linkedin-export-button")) {
-    const exportButton = document.createElement("button");
-    exportButton.id = "linkedin-export-button";
-    exportButton.innerText = "Export Profile (CSV)";
-    exportButton.style.cssText = `
-      background-color: #0073b1;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-left: 10px;
-    `;
-    exportButton.addEventListener("click", () => {
-      if (!canExport()) return;
-      
-      const profileData = extractProfileData();
-      console.log("Extracted Profile Data:", profileData);
-      // Send data to background script for export
-      chrome.runtime.sendMessage({ type: "EXPORT_PROFILE", payload: profileData }, (response) => {
-        if (response && response.success) {
-          // Show preview in popup first
-          chrome.runtime.sendMessage({ type: "SHOW_PREVIEW", payload: response.data });
-          showNotification("Profile data ready for preview. Check the extension popup!", "info");
-        } else {
-          const errorMsg = response ? response.message : "Export failed";
-          console.error("Export error:", errorMsg);
-          showNotification(errorMsg, "error");
-        }
-      });
-    });
-    targetElement.appendChild(exportButton);
+// Helper function to get href from multiple selectors
+function getHrefFromSelectors(selectors) {
+  for (const selector of selectors) {
+    const element = document.querySelector(selector);
+    if (element && element.href) {
+      return element.href.trim();
+    }
   }
+  return "";
 }
 
-// Function to extract data from search results (People search)
-function extractSearchResultsData() {
-  const results = [];
-  const searchResultItems = document.querySelectorAll(".reusable-search__result-container"); // Adjust selector
-
-  searchResultItems.forEach((item, index) => {
-    const data = {};
-    // Name
-    const nameElement = item.querySelector("span.entity-result__title-text a span[aria-hidden='true']");
-    data.name = nameElement ? nameElement.innerText.trim() : "";
-
-    // Title
-    const titleElement = item.querySelector(".entity-result__primary-subtitle");
-    data.title = titleElement ? titleElement.innerText.trim() : "";
-
-    // Company
-    const companyElement = item.querySelector(".entity-result__secondary-subtitle");
-    data.company = companyElement ? companyElement.innerText.trim() : "";
-
-    // Location (often part of the primary subtitle or a separate element)
-    const locationElement = item.querySelector(".entity-result__summary"); // Placeholder, needs refinement
-    data.location = locationElement ? locationElement.innerText.trim() : "";
-
-    // Profile URL
-    const profileLinkElement = item.querySelector("span.entity-result__title-text a");
-    data.profileUrl = profileLinkElement ? profileLinkElement.href : "";
-
-    // Add checkbox for selection
-    if (!item.querySelector(".linkedin-export-checkbox")) {
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.className = "linkedin-export-checkbox";
-      checkbox.id = `export-checkbox-${index}`;
-      checkbox.style.cssText = `
-        margin-right: 8px;
-        transform: scale(1.2);
-      `;
-      
-      const label = document.createElement("label");
-      label.htmlFor = `export-checkbox-${index}`;
-      label.textContent = "Select for export";
-      label.style.cssText = `
-        font-size: 12px;
-        color: #666;
-        margin-left: 4px;
-      `;
-
-      const checkboxContainer = document.createElement("div");
-      checkboxContainer.className = "export-checkbox-container";
-      checkboxContainer.style.cssText = `
-        margin-top: 8px;
-        display: flex;
-        align-items: center;
-      `;
-      checkboxContainer.appendChild(checkbox);
-      checkboxContainer.appendChild(label);
-      
-      item.appendChild(checkboxContainer);
-    }
-
-    // Check if this item is selected
-    const checkbox = item.querySelector(".linkedin-export-checkbox");
-    if (checkbox && checkbox.checked) {
-      results.push(data);
-    }
-  });
-  
-  return results;
-}
-
-// Function to get all search results (for "select all" functionality)
-function getAllSearchResultsData() {
-  const results = [];
-  const searchResultItems = document.querySelectorAll(".reusable-search__result-container");
-
-  searchResultItems.forEach(item => {
-    const data = {};
-    // Name
-    const nameElement = item.querySelector("span.entity-result__title-text a span[aria-hidden='true']");
-    data.name = nameElement ? nameElement.innerText.trim() : "";
-
-    // Title
-    const titleElement = item.querySelector(".entity-result__primary-subtitle");
-    data.title = titleElement ? titleElement.innerText.trim() : "";
-
-    // Company
-    const companyElement = item.querySelector(".entity-result__secondary-subtitle");
-    data.company = companyElement ? companyElement.innerText.trim() : "";
-
-    // Location
-    const locationElement = item.querySelector(".entity-result__summary");
-    data.location = locationElement ? locationElement.innerText.trim() : "";
-
-    // Profile URL
-    const profileLinkElement = item.querySelector("span.entity-result__title-text a");
-    data.profileUrl = profileLinkElement ? profileLinkElement.href : "";
-
-    results.push(data);
-  });
-  return results;
-}
-
-// Function to inject export button on search results page
-function injectSearchResultsExportButton() {
-  const targetElement = document.querySelector(".reusable-search__entity-result-list"); // Adjust selector
-
-  if (targetElement && !document.getElementById("linkedin-export-selected-button")) {
-    // Create container for buttons
-    const buttonContainer = document.createElement("div");
-    buttonContainer.style.cssText = `
-      margin-bottom: 15px;
-      padding: 10px;
-      background: #f3f6f8;
-      border-radius: 8px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    `;
-
-    // Select All button
-    const selectAllButton = document.createElement("button");
-    selectAllButton.id = "linkedin-select-all-button";
-    selectAllButton.innerText = "Select All";
-    selectAllButton.style.cssText = `
-      background-color: #666;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 16px;
-      font-size: 14px;
-      cursor: pointer;
-    `;
-    selectAllButton.addEventListener("click", () => {
-      const checkboxes = document.querySelectorAll(".linkedin-export-checkbox");
-      checkboxes.forEach(cb => cb.checked = true);
-      updateExportButtonText();
-    });
-
-    // Deselect All button
-    const deselectAllButton = document.createElement("button");
-    deselectAllButton.id = "linkedin-deselect-all-button";
-    deselectAllButton.innerText = "Deselect All";
-    deselectAllButton.style.cssText = `
-      background-color: #666;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 16px;
-      font-size: 14px;
-      cursor: pointer;
-    `;
-    deselectAllButton.addEventListener("click", () => {
-      const checkboxes = document.querySelectorAll(".linkedin-export-checkbox");
-      checkboxes.forEach(cb => cb.checked = false);
-      updateExportButtonText();
-    });
-
-    // Export Selected button
-    const exportButton = document.createElement("button");
-    exportButton.id = "linkedin-export-selected-button";
-    exportButton.innerText = "Export Selected (0) (CSV)";
-    exportButton.style.cssText = `
-      background-color: #0073b1;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 16px;
-      cursor: pointer;
-    `;
-    exportButton.addEventListener("click", () => {
-      if (!canExport()) return;
-      
-      const selectedProfiles = extractSearchResultsData();
-      if (selectedProfiles.length === 0) {
-        showNotification("Please select at least one profile to export", "warning");
-        return;
+// Helper function to get all text content from a list of selectors
+function getAllTextFromSelectors(selectors) {
+  let allText = [];
+  for (const selector of selectors) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(element => {
+      if (element && element.textContent && element.textContent.trim() !== ".") {
+        allText.push(element.textContent.trim().replace(/\s\s+/g, " "));
       }
-      console.log("Extracted Search Results Data:", selectedProfiles);
-      chrome.runtime.sendMessage({ type: "EXPORT_SEARCH_RESULTS", payload: selectedProfiles }, (response) => {
-        if (response && response.success) {
-          // Generate and download CSV directly
-          const csvContent = generateCSV(response.data);
-          downloadCSV(csvContent, "linkedin_search_results_" + new Date().toISOString().split("T")[0] + ".csv");
-          showNotification(`${response.data.length} profiles exported successfully!`, "success");
-        } else {
-          const errorMsg = response ? response.message : "Export failed";
-          console.error("Export error:", errorMsg);
-          showNotification(errorMsg, "error");
-        }
-      });
     });
+  }
+  return allText.join(", ");
+}
 
-    buttonContainer.appendChild(selectAllButton);
-    buttonContainer.appendChild(deselectAllButton);
-    buttonContainer.appendChild(exportButton);
-    
-    // Prepend to the list or insert at a suitable place
-    targetElement.prepend(buttonContainer);
+// Function to extract profile data
+function extractProfileData() {
+  const profileData = {};
+  const errors = [];
 
-    // Add event listeners to checkboxes to update button text
-    const observer = new MutationObserver(() => {
-      updateExportButtonText();
+  const fields = {
+    name: [".pv-text-details__left-panel h1", ".text-heading-xlarge"],
+    title: [".pv-text-details__left-panel .text-body-medium", ".text-body-medium.break-words"],
+    company: [".pv-text-details__left-panel .inline-block.font-size-entitle.v-align-middle.break-words", ".pv-text-details__left-panel .text-body-small.inline.t-black--light.break-words", ".pv-text-details__left-panel .text-body-small.inline.t-black--light.break-words a"],
+    location: [".pv-text-details__left-panel .text-body-small.inline.t-black--light.break-words", ".pv-text-details__left-panel .text-body-small.inline.t-black--light.break-words span:first-child"],
+    profileUrl: ["a.pv-top-card-v2-section__info-action-item"],
+    email: [".pv-contact-info__contact-type.contact-info-form__contact-type-email a"],
+    about: [".pv-about-section .pv-shared-text-with-see-more__text", ".pv-about-section .lt-line-clamp__line"],
+    education: [".education__item-school-name", "#education-section .pvs-entity__path-node"],
+    skills: [".pv-skill-category-entity__name-text", "#skills-section .pvs-entity__path-node"],
+    connections: [".pv-top-card--list-bullet .t-black--light", ".pv-top-card--list-bullet .text-body-small"],
+    publicProfileUrl: [".pv-top-card-v2-section__info-action-item[data-control-name=\"contact_see_more\"]"],
+    phone: [".pv-contact-info__contact-type.contact-info-form__contact-type-phone a"],
+    socialLinks: [".pv-contact-info__contact-type.contact-info-form__contact-type-web a"],
+    industry: [".pv-top-card__industry-list-item"],
+  };
+
+  for (const field in fields) {
+    let value;
+    if (field === "profileUrl") {
+      value = window.location.href;
+    } else if (field === "email" || field === "phone" || field === "socialLinks") {
+      value = getHrefFromSelectors(fields[field]);
+    } else if (field === "skills" || field === "education") {
+      value = getAllTextFromSelectors(fields[field]);
+    } else {
+      value = getTextFromSelectors(fields[field]);
+    }
+
+    if (field === "company") {
+      // Special handling for company to extract only the company name
+      const companyText = getTextFromSelectors(fields[field]);
+      const companyMatch = companyText.match(/^(.*?)(?: at | \(.*?\))?$/);
+      profileData[field] = companyMatch ? companyMatch[1].trim() : companyText.trim();
+    } else {
+      profileData[field] = value;
+    }
+
+    if (!profileData[field] && field !== "profileUrl") {
+      errors.push(field);
+    }
+  }
+
+  if (errors.length > 0) {
+    // If critical fields are missing, return an.error object
+    if (errors.includes("name") || errors.includes("title")) {
+      return { error: "Failed to extract critical profile data.", errorType: "parsing_error", errorDetails: errors };
+    }
+  }
+
+  return profileData;
+}
+
+// Function to extract search results data
+function extractSearchResultsData() {
+  const searchResults = [];
+  const resultContainers = document.querySelectorAll(".reusable-search__result-container");
+
+  resultContainers.forEach(container => {
+    const checkbox = container.querySelector(".linkedin-export-checkbox");
+    if (checkbox && !checkbox.checked) {
+      return; // Skip if checkbox is not checked
+    }
+
+    const name = getTextFromSelectors([".entity-result__title-text span[aria-hidden=\"true\"]", ".actor-name"]);
+    const title = getTextFromSelectors([".entity-result__primary-subtitle", ".search-result__truncate.t-14.t-black--light.full-width"]);
+    const company = getTextFromSelectors([".entity-result__secondary-subtitle", ".search-result__truncate.t-14.t-black--light.full-width"]);
+    const location = getTextFromSelectors([".entity-result__summary .entity-result__location", ".search-result__truncate.t-14.t-black--light.full-width"]);
+    const profileUrl = getHrefFromSelectors([".app-aware-link[data-control-name=\"entity_result_profile_view\"]", ".search-result__result-link"]);
+    const connectionDegree = getTextFromSelectors([".entity-result__badge-text"]);
+    const mutualConnections = getTextFromSelectors([".entity-result__simple-insight-text"]);
+
+    searchResults.push({
+      name,
+      title,
+      company,
+      location,
+      connectionDegree,
+      mutualConnections,
+      profileUrl
     });
-    observer.observe(targetElement, { childList: true, subtree: true });
+  });
 
-    // Initial update
-    setTimeout(updateExportButtonText, 1000);
-  }
+  return searchResults;
 }
 
-// Function to update export button text with selected count
-function updateExportButtonText() {
-  const exportButton = document.getElementById("linkedin-export-selected-button");
-  if (exportButton) {
-    const selectedCount = document.querySelectorAll(".linkedin-export-checkbox:checked").length;
-    exportButton.innerText = `Export Selected (${selectedCount}) (CSV)`;
-  }
-}
-
-// Rate limiting for exports (basic anti-blocking measure)
-let lastExportTime = 0;
-const EXPORT_COOLDOWN = 2000; // 2 seconds between exports
-
-function canExport() {
-  const now = Date.now();
-  if (now - lastExportTime < EXPORT_COOLDOWN) {
-    const remainingTime = Math.ceil((EXPORT_COOLDOWN - (now - lastExportTime)) / 1000);
-    showNotification(`Please wait ${remainingTime} seconds before next export`, "warning");
-    return false;
-  }
-  lastExportTime = now;
-  return true;
-}
-
-
-
-
-// CSV generation function
-function generateCSV(data) {
-  if (!Array.isArray(data)) {
-    data = [data];
-  }
-
-  if (data.length === 0) {
+// Function to generate CSV content
+function generateCSV(data, type) {
+  if (!data || data.length === 0) {
     return "";
   }
 
-  // Get headers from all objects to handle missing fields
-  const headers = Array.from(data.reduce((acc, obj) => {
-    Object.keys(obj).forEach(key => acc.add(key));
-    return acc;
-  }, new Set()));
+  let headers;
+  if (type === "profile") {
+    headers = Object.keys(data);
+  } else if (type === "searchResults") {
+    headers = Object.keys(data[0]);
+  } else {
+    return "";
+  }
 
-  let csv = headers.join(",") + "\n";
+  const csvRows = [];
+  csvRows.push(headers.map(header => `"${header.replace(/"/g, "\"\"")}"`).join(","));
 
-  // Add data rows
-  data.forEach(row => {
+  if (type === "profile") {
     const values = headers.map(header => {
-      const value = row[header] || "";
-      // Escape commas and quotes in CSV
-      return '"' + String(value).replace(/"/g, '""') + '"';
+      const value = data[header] || "";
+      return `"${String(value).replace(/"/g, "\"\"")}"`;
     });
-    csv += values.join(",") + "\n";
-  });
+    csvRows.push(values.join(","));
+  } else if (type === "searchResults") {
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header] || "";
+        return `"${String(value).replace(/"/g, "\"\"")}"`;
+      });
+      csvRows.push(values.join(","));
+    });
+  }
 
-  return csv;
+  return csvRows.join("\n");
 }
 
-// CSV download function
+// Function to download CSV
 function downloadCSV(csvContent, filename) {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
-  
   if (link.download !== undefined) {
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
@@ -402,73 +176,296 @@ function downloadCSV(csvContent, filename) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  } else {
+    showNotification("Your browser does not support downloading files directly.", "error");
   }
 }
 
-// Notification function
-function showNotification(message, type = "success") {
+// Function to show notifications
+function showNotification(message, type = "info") {
+  // Remove any existing notifications
+  const existingNotification = document.querySelector(".linkedin-export-notification");
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+
   const notification = document.createElement("div");
-  notification.className = "linkedin-export-notification";
+  notification.className = `linkedin-export-notification linkedin-export-notification--${type}`;
   notification.textContent = message;
-  
-  let backgroundColor = "#28a745"; // success
-  if (type === "error") backgroundColor = "#dc3545";
-  if (type === "warning") backgroundColor = "#ffc107";
-  if (type === "info") backgroundColor = "#17a2b8";
-  
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: ${backgroundColor};
-    color: white;
-    padding: 12px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    z-index: 10000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 300px;
-    word-wrap: break-word;
-  `;
-  
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    if (document.body.contains(notification)) {
-      document.body.removeChild(notification);
-    }
-  }, 5000);
+
+  let icon = "";
+  if (type === "success") {
+    icon = "✔";
+  } else if (type === "error") {
+    icon = "✖";
+  } else if (type === "warning") {
+    icon = "⚠";
+  }
+  notification.innerHTML = `<span>${icon}</span> ${message}`;
+
+  Object.assign(notification.style, {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    backgroundColor: type === "success" ? "#4CAF50" : type === "error" ? "#f44336" : type === "warning" ? "#ff9800" : "#555",
+    color: "white",
+    padding: "10px 20px",
+    borderRadius: "5px",
+    zIndex: "10000",
+    opacity: "1", // Set opacity to 1 immediately for testing
+    transform: "translateY(0)", // Set transform to 0 immediately for testing
+    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  });
+
+  // Ensure document.body exists before appending
+  if (document.body) {
+    console.log("showNotification: document.body is available. Appending notification.");
+    document.body.appendChild(notification);
+    console.log("showNotification: Notification appended. document.body.innerHTML:", document.body.innerHTML);
+  } else {
+    console.error("Document body not available to show notification.");
+  }
 }
 
-// Conditional export for testing
-if (typeof module !== 'undefined' && module.exports) {
+// Cooldown mechanism to prevent excessive exports
+let exportCooldown = false;
+function canExport() {
+  if (exportCooldown) {
+    return false;
+  }
+  exportCooldown = true;
+  setTimeout(() => {
+    exportCooldown = false;
+  }, 3000); // 3 seconds cooldown
+  return true;
+}
+
+// Function to inject export button on profile pages
+function injectProfileExportButton() {
+  const targetElement = document.querySelector(".pv-top-card-v2-ctas__primary-button");
+  if (!targetElement || document.getElementById("linkedin-export-button")) {
+    return;
+  }
+
+  const exportButton = document.createElement("button");
+  exportButton.id = "linkedin-export-button";
+  exportButton.className = "artdeco-button artdeco-button--2 artdeco-button--secondary ember-view";
+  exportButton.textContent = "Export Profile (CSV)";
+  Object.assign(exportButton.style, {
+    marginLeft: "8px",
+    // Add any other specific styles to match LinkedIn\"s buttons
+  });
+
+  exportButton.addEventListener("click", async () => {
+    if (!canExport()) {
+      showNotification("Please wait a moment before exporting again.", "warning");
+      return;
+    }
+
+    exportButton.disabled = true;
+    const originalText = exportButton.textContent;
+    exportButton.textContent = "Extracting...";
+
+    const profileData = extractProfileData();
+
+    if (profileData.error) {
+      showNotification(`Export failed: ${profileData.error}. Details: ${profileData.errorDetails.join(", ")}`, "error");
+      exportButton.textContent = originalText;
+      exportButton.disabled = false;
+      return;
+    }
+
+    chrome.runtime.sendMessage({ type: "EXPORT_PROFILE", payload: profileData }, response => {
+      if (response.success) {
+        showNotification("Profile data ready for preview. Check the extension popup!", "success");
+      } else {
+        showNotification(response.message || "Failed to export profile data.", "error");
+      }
+      exportButton.textContent = originalText;
+      exportButton.disabled = false;
+    });
+  });
+
+  targetElement.parentNode.insertBefore(exportButton, targetElement.nextSibling);
+}
+
+// Function to update the text of the export selected button
+function updateExportButtonText() {
+  const selectedCheckboxes = document.querySelectorAll(".linkedin-export-checkbox:checked");
+  const exportSelectedButton = document.getElementById("linkedin-export-selected-button");
+  if (exportSelectedButton) {
+    exportSelectedButton.textContent = `Export Selected (${selectedCheckboxes.length})`;
+  }
+}
+
+// Function to inject export buttons on search results pages
+function injectSearchResultsExportButton() {
+  const targetElement = document.querySelector(".reusable-search__entity-result-list");
+  if (!targetElement || document.getElementById("linkedin-export-selected-button")) {
+    return;
+  }
+
+  // Create a container for the new buttons
+  const buttonContainer = document.createElement("div");
+  buttonContainer.id = "linkedin-export-search-buttons";
+  Object.assign(buttonContainer.style, {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+    marginBottom: "10px",
+    padding: "10px",
+    borderBottom: "1px solid #e0e0e0",
+    backgroundColor: "#fff",
+    position: "sticky",
+    top: "0",
+    zIndex: "9999",
+  });
+
+  // Select All Button
+  const selectAllButton = document.createElement("button");
+  selectAllButton.id = "linkedin-select-all-button";
+  selectAllButton.className = "artdeco-button artdeco-button--2 artdeco-button--secondary ember-view";
+  selectAllButton.textContent = "Select All";
+  selectAllButton.addEventListener("click", () => {
+    document.querySelectorAll(".linkedin-export-checkbox").forEach(checkbox => {
+      checkbox.checked = true;
+    });
+    updateExportButtonText();
+  });
+  buttonContainer.appendChild(selectAllButton);
+
+  // Deselect All Button
+  const deselectAllButton = document.createElement("button");
+  deselectAllButton.id = "linkedin-deselect-all-button";
+  deselectAllButton.className = "artdeco-button artdeco-button--2 artdeco-button--secondary ember-view";
+  deselectAllButton.textContent = "Deselect All";
+  deselectAllButton.addEventListener("click", () => {
+    document.querySelectorAll(".linkedin-export-checkbox").forEach(checkbox => {
+      checkbox.checked = false;
+    });
+    updateExportButtonText();
+  });
+  buttonContainer.appendChild(deselectAllButton);
+
+  // Export Selected Button
+  const exportSelectedButton = document.createElement("button");
+  exportSelectedButton.id = "linkedin-export-selected-button";
+  exportSelectedButton.className = "artdeco-button artdeco-button--2 artdeco-button--primary ember-view";
+  exportSelectedButton.textContent = "Export Selected (0)";
+  exportSelectedButton.addEventListener("click", async () => {
+    if (!canExport()) {
+      showNotification("Please wait a moment before exporting again.", "warning");
+      return;
+    }
+
+    const selectedResults = extractSearchResultsData();
+    if (selectedResults.length === 0) {
+      showNotification("No profiles selected for export.", "warning");
+      return;
+    }
+
+    exportSelectedButton.disabled = true;
+    const originalText = exportSelectedButton.textContent;
+    exportSelectedButton.textContent = "Extracting...";
+
+    chrome.runtime.sendMessage({ type: "EXPORT_SEARCH_RESULTS", payload: selectedResults }, response => {
+      if (response.success) {
+        showNotification(`${selectedResults.length} profiles ready for preview.`, "success");
+      } else {
+        showNotification(response.message || "Failed to export search results.", "error");
+      }
+      exportSelectedButton.textContent = originalText;
+      exportSelectedButton.disabled = false;
+    });
+  });
+  buttonContainer.appendChild(exportSelectedButton);
+
+  // Insert the button container at the top of the search results list
+  targetElement.parentNode.insertBefore(buttonContainer, targetElement);
+
+  // Inject checkboxes into each search result item
+  const resultContainers = document.querySelectorAll(".reusable-search__entity-result-container");
+  resultContainers.forEach((container, index) => {
+    if (!container.querySelector(".linkedin-export-checkbox")) {
+      const checkboxContainer = document.createElement("div");
+      checkboxContainer.className = "export-checkbox-container";
+      Object.assign(checkboxContainer.style, {
+        position: "absolute",
+        top: "10px",
+        left: "10px",
+        zIndex: "100",
+      });
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "linkedin-export-checkbox";
+      checkbox.id = `export-checkbox-${index}`;
+      checkbox.addEventListener("change", updateExportButtonText);
+      checkboxContainer.appendChild(checkbox);
+      container.style.position = "relative"; // Ensure position for absolute checkbox
+      container.appendChild(checkboxContainer);
+    }
+  });
+
+  // Initial update of button text
+  updateExportButtonText();
+}
+
+// Main function to run on page load
+function main() {
+  // Ensure document.body is available before observing
+  if (document.body) {
+
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+          // Check if we are on a profile page
+          if (window.location.pathname.startsWith("/in/")) {
+            injectProfileExportButton();
+          } else if (window.location.pathname.startsWith("/search/results/people/")) {
+            injectSearchResultsExportButton();
+          }
+        }
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Initial check in case the elements are already present on page load
+    if (window.location.pathname.startsWith("/in/")) {
+      injectProfileExportButton();
+    } else if (window.location.pathname.startsWith("/search/results/people/")) {
+      injectSearchResultsExportButton();
+    }
+  } else {
+    console.error("Document body not available for MutationObserver.");
+  }
+}
+
+// Export functions for testing purposes
+if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    extractProfileData,
     getTextFromSelectors,
-    injectProfileExportButton,
+    getHrefFromSelectors,
+    getAllTextFromSelectors,
+    extractProfileData,
     extractSearchResultsData,
-    getAllSearchResultsData,
-    injectSearchResultsExportButton,
-    updateExportButtonText,
-    canExport,
     generateCSV,
     downloadCSV,
-    showNotification
+    showNotification,
+    canExport,
+    injectProfileExportButton,
+    updateExportButtonText,
+    injectSearchResultsExportButton,
+    main,
   };
 }
 
-if (typeof window !== 'undefined') {
-    window.extractProfileData = extractProfileData;
-    window.getTextFromSelectors = getTextFromSelectors;
-    window.injectProfileExportButton = injectProfileExportButton;
-    window.extractSearchResultsData = extractSearchResultsData;
-    window.getAllSearchResultsData = getAllSearchResultsData;
-    window.injectSearchResultsExportButton = injectSearchResultsExportButton;
-    window.updateExportButtonText = updateExportButtonText;
-    window.canExport = canExport;
-    window.generateCSV = generateCSV;
-    window.downloadCSV = downloadCSV;
-    window.showNotification = showNotification;
+// Call main function if not in a test environment
+// This will be handled by the test setup in JSDOM
+if (typeof window !== "undefined" && !window.jest) {
+  main();
 }
+

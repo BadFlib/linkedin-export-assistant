@@ -79,50 +79,79 @@ describe("Background Script Tests", () => {
       location: "New York, NY",
       profileUrl: "https://linkedin.com/in/johndoe",
       email: "john.doe@example.com",
-      about: "Experienced engineer",
-      links: ["https://linkedin.com/in/johndoe", "https://johndoe.com"]
+      about: "Experienced engineer with a passion for web development.",
+      education: "University of Example",
+      skills: "JavaScript, React, Node.js",
+      connections: "500+ connections",
+      publicProfileUrl: "https://www.linkedin.com/in/johndoe-public",
+      phone: "+1234567890",
+      socialLinks: "https://twitter.com/johndoe, https://github.com/johndoe",
+      industry: "Computer Software",
     };
 
-    test("should map data according to provided mapping", () => {
-      const mapping = {
-        name: { label: "Full Name", enabled: true },
-        title: { label: "Job Title", enabled: true },
-        company: { label: "Current Company", enabled: true },
-        email: { label: "Email Address", enabled: true },
-        nonExistentField: { label: "Should Not Appear", enabled: true }
+    test("should map data according to provided mapping and order", () => {
+      const customMapping = {
+        name: { label: "Full Name", enabled: true, order: 1 },
+        company: { label: "Current Employer", enabled: true, order: 3 },
+        title: { label: "Job Title", enabled: true, order: 2 },
+        email: { label: "Email Address", enabled: true, order: 4 },
+        connections: { label: "Connections Count", enabled: true, order: 5 },
+        nonExistentField: { label: "Should Not Appear", enabled: true, order: 6 },
       };
-      const mapped = mapData(rawProfileData, mapping);
+
+      const mapped = mapData(rawProfileData, customMapping);
+      expect(Object.keys(mapped)).toEqual([
+        "Full Name",
+        "Job Title",
+        "Current Employer",
+        "Email Address",
+        "Connections Count",
+        "Should Not Appear",
+      ]);
       expect(mapped).toEqual({
         "Full Name": "John Doe",
         "Job Title": "Software Engineer at Example Corp",
-        "Current Company": "Example Corp",
+        "Current Employer": "Example Corp",
         "Email Address": "john.doe@example.com",
-        "Should Not Appear": ""
+        "Connections Count": "500+ connections",
+        "Should Not Appear": "",
       });
     });
 
-    test("should only include enabled fields", () => {
-      const mapping = {
-        name: { label: "Full Name", enabled: true },
-        title: { label: "Job Title", enabled: false },
-        company: { label: "Current Company", enabled: true }
+    test("should exclude disabled fields", () => {
+      const customMapping = {
+        name: { label: "Name", enabled: true, order: 1 },
+        title: { label: "Title", enabled: false, order: 2 }, // Disabled
+        company: { label: "Company", enabled: true, order: 3 },
       };
-      const mapped = mapData(rawProfileData, mapping);
+
+      const mapped = mapData(rawProfileData, customMapping);
+      expect(Object.keys(mapped)).toEqual([
+        "Name",
+        "Company",
+      ]);
       expect(mapped).toEqual({
-        "Full Name": "John Doe",
-        "Current Company": "Example Corp"
+        "Name": "John Doe",
+        "Company": "Example Corp",
       });
     });
 
-    test("should handle empty raw data gracefully", () => {
-      const mapping = {
-        name: { label: "Full Name", enabled: true },
-        title: { label: "Job Title", enabled: true }
+    test("should handle missing data fields gracefully", () => {
+      const partialData = {
+        name: "John Doe",
+        company: "Example Corp",
       };
-      const mapped = mapData({}, mapping);
+      const customMapping = {
+        name: { label: "Name", enabled: true, order: 1 },
+        title: { label: "Title", enabled: true, order: 2 }, // Missing in partialData
+        company: { label: "Company", enabled: true, order: 3 },
+      };
+
+      const mapped = mapData(partialData, customMapping);
       expect(mapped).toEqual({
-        "Full Name": "",
-        "Job Title": ""
+        "Name": "John Doe",
+        "Title": "", // Should be empty string
+        "Company": "Example Corp",
       });
     });
 
@@ -133,13 +162,13 @@ describe("Background Script Tests", () => {
         "Title": "Software Engineer at Example Corp",
         "Company": "Example Corp",
         "Location": "New York, NY",
-        "Profile URL": "https://linkedin.com/in/johndoe",
         "Email": "john.doe@example.com",
-        "About": "Experienced engineer",
-        "Links": "https://linkedin.com/in/johndoe, https://johndoe.com"
+        "Phone": "+1234567890",
+        "Profile URL": "https://linkedin.com/in/johndoe",
+        "About": "Experienced engineer with a passion for web development.",
+        "Education": "University of Example",
+        "Skills": "JavaScript, React, Node.js"
       });
-    });
-  });
 
   describe("chrome.runtime.onMessage listener", () => {
     const EXPORT_LIMIT_PRO = 999999; // Essentially unlimited

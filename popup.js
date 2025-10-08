@@ -106,13 +106,25 @@ function loadFieldMapping() {
   chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
     if (response && response.fieldMapping) {
       const mapping = response.fieldMapping;
-      // Set checkbox states based on loaded mapping
-      const fields = ["name", "title", "company", "location", "profile-url", "links", "about", "email"];
-      fields.forEach(field => {
-        const checkbox = document.getElementById(`map-${field}`);
-        if (checkbox) {
-          const key = field.replace("-", "");
-          checkbox.checked = !!(mapping.profile[key] || mapping.searchResult[key]);
+      
+      // Load profile field mappings
+      const profileFields = ['name', 'title', 'company', 'location', 'email', 'phone', 
+                            'profileUrl', 'about', 'education', 'skills', 'connections', 
+                            'socialLinks', 'industry'];
+      profileFields.forEach(field => {
+        const checkbox = document.getElementById(`map-profile-${field}`);
+        if (checkbox && mapping.profile[field]) {
+          checkbox.checked = mapping.profile[field].enabled;
+        }
+      });
+      
+      // Load search result field mappings
+      const searchFields = ['name', 'title', 'company', 'location', 'connectionDegree', 
+                           'mutualConnections', 'profileUrl'];
+      searchFields.forEach(field => {
+        const checkbox = document.getElementById(`map-search-${field}`);
+        if (checkbox && mapping.searchResult[field]) {
+          checkbox.checked = mapping.searchResult[field].enabled;
         }
       });
     }
@@ -125,20 +137,50 @@ function saveFieldMapping() {
     searchResult: {}
   };
 
-  // Get checkbox states and build mapping
-  const fields = ["name", "title", "company", "location", "profile-url", "links", "about", "email"];
-  fields.forEach(field => {
-    const checkbox = document.getElementById(`map-${field}`);
-    if (checkbox && checkbox.checked) {
-      const key = field.replace("-", "");
-      let displayName = field.charAt(0).toUpperCase() + field.slice(1).replace("-", " ");
-      if (key === "profileurl") displayName = "Profile URL";
-      if (key === "about") displayName = "About";
-      if (key === "email") displayName = "Email";
+  // Profile field mappings
+  const profileFields = [
+    { key: 'name', label: 'Name', order: 1 },
+    { key: 'title', label: 'Title', order: 2 },
+    { key: 'company', label: 'Company', order: 3 },
+    { key: 'location', label: 'Location', order: 4 },
+    { key: 'email', label: 'Email', order: 5 },
+    { key: 'phone', label: 'Phone', order: 6 },
+    { key: 'profileUrl', label: 'Profile URL', order: 7 },
+    { key: 'about', label: 'About', order: 8 },
+    { key: 'education', label: 'Education', order: 9 },
+    { key: 'skills', label: 'Skills', order: 10 },
+    { key: 'connections', label: 'Connections', order: 11 },
+    { key: 'socialLinks', label: 'Social Links', order: 12 },
+    { key: 'industry', label: 'Industry', order: 13 }
+  ];
 
-      mapping.profile[key] = displayName;
-      mapping.searchResult[key] = displayName;
-    }
+  profileFields.forEach(field => {
+    const checkbox = document.getElementById(`map-profile-${field.key}`);
+    mapping.profile[field.key] = {
+      label: field.label,
+      enabled: checkbox ? checkbox.checked : false,
+      order: field.order
+    };
+  });
+
+  // Search result field mappings
+  const searchFields = [
+    { key: 'name', label: 'Name', order: 1 },
+    { key: 'title', label: 'Title', order: 2 },
+    { key: 'company', label: 'Company', order: 3 },
+    { key: 'location', label: 'Location', order: 4 },
+    { key: 'connectionDegree', label: 'Connection Degree', order: 5 },
+    { key: 'mutualConnections', label: 'Mutual Connections', order: 6 },
+    { key: 'profileUrl', label: 'Profile URL', order: 7 }
+  ];
+
+  searchFields.forEach(field => {
+    const checkbox = document.getElementById(`map-search-${field.key}`);
+    mapping.searchResult[field.key] = {
+      label: field.label,
+      enabled: checkbox ? checkbox.checked : false,
+      order: field.order
+    };
   });
 
   chrome.runtime.sendMessage({ 
@@ -220,7 +262,7 @@ function generateCSV(data) {
     const values = headers.map(header => {
       const value = row[header] || "";
       // Escape commas and quotes in CSV
-      return "\"" + String(value).replace(/"/g, """") + "\"";
+      return "\"" + String(value).replace(/"/g, '""') + "\"";
     });
     csv += values.join(",") + "\n";
   });
@@ -317,34 +359,3 @@ function bulkExportPlaceholder() {
   // Placeholder for bulk export templates functionality
   alert("Bulk Export Templates (PRO Feature)\n\nThis feature allows you to save and reuse export templates for different scenarios.\n\nIn the full version, this would:\n- Save custom field mappings as templates\n- Create templates for different industries/roles\n- Batch export multiple search results\n- Schedule automatic exports\n\nUpgrade to PRO to unlock this feature!");
 }
-
-function upgradeToProPlaceholder() {
-  // Placeholder for PRO upgrade functionality
-  const upgradeMessage = `
-Upgrade to LinkedIn Export Assistant PRO
-
-🚀 Unlimited Exports
-📊 Google Sheets Integration  
-🎯 Advanced Filtering
-📋 Export Templates
-⚡ Priority Support
-
-Price: $9.99/month
-
-In a real implementation, this would redirect to:
-- Stripe payment page
-- License key activation
-- Account management portal
-
-Click OK to simulate successful upgrade (for demo purposes).
-  `;
-  
-  if (confirm(upgradeMessage)) {
-    // Simulate upgrade for demo
-    chrome.storage.local.set({ isProUser: true }, () => {
-      showNotification("Successfully upgraded to PRO! Refresh the popup to see new features.");
-      loadStatus(); // Refresh status
-    });
-  }
-}
-
